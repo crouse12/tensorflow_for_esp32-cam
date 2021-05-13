@@ -1,0 +1,217 @@
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>手部偵測</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@2.1.0/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/handpose"></script>  
+    </head>
+    <body>
+<center>
+          <canvas id="canvas"></canvas>
+          <button id="aaa" hidden>Get Still</button>
+          <div id="stream-container" class="image-container hidden">
+          <img id="stream" src="" style="display:none" crossorigin="anonymous">
+          <div id="r"><div>
+        
+        <script>
+          document.addEventListener('DOMContentLoaded', function (event) {
+            var baseHost = 'http://192.168.0.101'
+            var streamUrl = baseHost + ':81'
+            const hide = el => {
+              el.classList.add('hidden')
+            }
+            const show = el => {
+              el.classList.remove('hidden')
+            }
+            const disable = el => {
+              el.classList.add('disabled')
+              el.disabled = true
+            }
+            const enable = el => {
+              el.classList.remove('disabled')
+              el.disabled = false
+            }
+            function updateConfig (el) {
+              let value
+              switch (el.type) {
+                case 'checkbox':
+                  value = el.checked ? 1 : 0
+                  break
+                case 'range':
+                case 'select-one':
+                  value = el.value
+                  break
+                case 'button':
+                case 'submit':
+                  value = '1'
+                  break
+                default:
+                  return
+              }
+              const query = `${baseHost}/control?var=${el.id}&val=${value}`
+              fetch(query)
+                .then(response => {
+                  console.log(`request to ${query} finished, status: ${response.status}`)
+                })
+            }
+            document
+              .querySelectorAll('.close')
+              .forEach(el => {
+                el.onclick = () => {
+                  hide(el.parentNode)
+                }
+              })
+            const showimg = document.getElementById('stream')
+            const showimgContainer = document.getElementById('stream-container')
+            const stillButton = document.getElementById('aaa')
+            const stopStream = () => {
+              showimg.src="";
+            }
+            const startStream = () => {
+              showimg.src = `${streamUrl}/stream`
+              show(showimgContainer)
+            }
+            // Attach actions to buttons
+            stillButton.onclick = () => {
+              stopStream()
+              try{
+                showimg.src = `${baseHost}/capture?_cb=${Date.now()}`
+              }
+              catch(e) {
+                showimg.src = `${baseHost}/capture?_cb=${Date.now()}`  
+              }
+              show(showimgContainer)
+            }
+            // Attach default on change action
+            document
+              .querySelectorAll('.default-action')
+              .forEach(el => {
+                el.onchange = () => updateConfig(el)
+              })
+          })
+
+
+    var display1 = document.getElementById('stream');
+    var canvas = document.getElementById("canvas");
+    var context = canvas.getContext("2d");  
+    var r = document.getElementById('r');
+    var HandModel,lastValue;
+    let fingerLookupIndices = {
+      thumb: [0, 1, 2, 3, 4],
+      indexFinger: [0, 5, 6, 7, 8],
+      middleFinger: [0, 9, 10, 11, 12],
+      ringFinger: [0, 13, 14, 15, 16],
+      pinky: [0, 17, 18, 19, 20]
+    };       
+    var hold = document.getElementById('aaa');
+    function LoadHandModel() {
+      handpose.load().then(function(net) {
+      HandModel = net;
+      r.innerHTML = "";
+      hold.click();
+      });     
+    }
+    
+    async function DetectImage() {
+      var canvas_width=display1.width;
+      var canvas_height=display1.height;
+      canvas.setAttribute("width", canvas_width);
+      canvas.setAttribute("height", canvas_height);
+      context.drawImage(display1, 0, 0, display1.width, display1.height);   
+      
+      await HandModel.estimateHands(canvas).then(predictions => {
+      r.innerHTML = "";
+    
+      if (predictions.length > 0) {
+        for (let i = 0; i < predictions.length; i++) {
+        const keypoints = predictions[i].landmarks;
+        var fingerpart="";
+        for (let i = 0; i < keypoints.length; i++) {
+	        if (i==0) fingerpart="手腕";
+        	else if (i==4) fingerpart="大拇指第一節";
+   	        else if (i==3) fingerpart="大拇指第二節";
+        	else if (i==2) fingerpart="大拇指第三節";
+		else if (i==1) fingerpart="大拇指根部";
+        	else if (i==8) fingerpart="食指第一節";
+        	else if (i==7) fingerpart="食指第二節";
+        	else if (i==6) fingerpart="食指第三節";
+		else if (i==5) fingerpart="食指根部";
+        	else if (i==12) fingerpart="中指第一節";
+        	else if (i==11) fingerpart="中指第二節";
+        	else if (i==10) fingerpart="中指第三節";
+		else if (i==9) fingerpart="無名指根部";
+        	else if (i==16) fingerpart="無名指第一節";
+        	else if (i==15) fingerpart="無名指第二節";
+        	else if (i==14) fingerpart="無名指第三節";
+		else if (i==13) fingerpart="無名指根部";
+        	else if (i==20) fingerpart="小拇指第一節";
+        	else if (i==19) fingerpart="小拇指第二節";
+        	else if (i==18) fingerpart="小拇指第三節";
+		else if (i==17) fingerpart="小拇指根部";
+        	r.innerHTML += fingerpart+"(x軸:"+parseInt(keypoints[i][0])+",y軸:"+parseInt(keypoints[i][1])+")<br>";
+        }
+        }
+    
+        const res = predictions[0].landmarks;
+        drawKeypoints(context, res, predictions[0].annotations);
+      }
+      else
+        r.innerHTML = "未辨識到";  
+      hold.click();
+      });
+    }
+    
+    display1.onload = function (event) {
+        setTimeout(function(){DetectImage();},100);
+    }
+    
+    window.onload = function () { LoadHandModel(); }
+    //https://github.com/tensorflow/tfjs-HandModels/blob/master/handpose/demo/index.js
+    function drawPoint(ctx, y, x, r) {
+      ctx.beginPath();
+      ctx.fillStyle = "#00FFFF";
+      ctx.arc(x, y, r, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+    
+    function drawKeypoints(ctx, keypoints) {
+      const keypointsArray = keypoints;
+      for (let i = 0; i < keypointsArray.length; i++) {
+      const y = keypointsArray[i][0];
+      const x = keypointsArray[i][1];
+      drawPoint(ctx, x - 2, y - 2, 3);
+      }
+    
+      const fingers = Object.keys(fingerLookupIndices);
+      for (let i = 0; i < fingers.length; i++) {
+      const finger = fingers[i];
+      const points = fingerLookupIndices[finger].map(idx => keypoints[idx]);
+      drawPath(ctx, points, false);
+      }
+    }
+    
+    function drawPath(ctx, points, closePath) {
+      if (lastValue==-1||lastValue!=points[0][0]) {
+      ctx.strokeStyle = "#2828FF";
+      } else {
+      ctx.strokeStyle = "#00DB00";
+      }
+    
+      const region = new Path2D();
+      region.moveTo(points[0][0], points[0][1]);
+      for (let i = 1; i < points.length; i++) {
+      const point = points[i];
+      region.lineTo(point[0], point[1]);
+      }
+    
+      lastValue=points[0][0];
+    
+      if (closePath) {
+      region.closePath();
+      }
+      ctx.stroke(region);
+    }
+    </script>
+    
+    </body>
+</html
